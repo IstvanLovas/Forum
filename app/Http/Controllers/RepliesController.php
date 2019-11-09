@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Http\Requests\CreatePostRequest;
 use App\Reply;
 use App\Thread;
 
@@ -29,24 +30,17 @@ class RepliesController extends Controller
     /**
      * Persist a new reply.
      *
-     * @param  integer $channelId
-     * @param  Thread  $thread
-     * @return \Illuminate\Http\RedirectResponse
+     * @param  integer           $channelId
+     * @param  Thread            $thread
+     * @param  CreatePostRequest $form
+     * @return \Illuminate\Database\Eloquent\Model
      */
-    public function store($channelId, Thread $thread)
+    public function store($channelId, Thread $thread, CreatePostRequest $form)
     {
-        $this->validate(request(), ['body' => 'required']);
-
-        $reply = $thread->addReply([
+        return $thread->addReply([
             'body' => request('body'),
             'user_id' => auth()->id()
-        ]);
-
-        if (request()->expectsJson()) {
-            return $reply->load('owner');
-        }
-
-        return back()->with('flash', 'Your reply has been left.');
+        ])->load('owner');
     }
 
     /**
@@ -58,9 +52,16 @@ class RepliesController extends Controller
     {
         $this->authorize('update', $reply);
 
-        $this->validate(request(), ['body' => 'required']);
+        try {
+            $this->validate(request(), ['body' => 'required|spamfree']);
 
-        $reply->update(request(['body']));
+            $reply->update(request(['body']));
+        } catch (\Exception $e) {
+            return response(
+                'Sorry, your reply could not be saved at this time.', 422
+            );
+        }
+
     }
 
     /**
